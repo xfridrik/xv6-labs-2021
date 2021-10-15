@@ -1,0 +1,16 @@
+----------pgtbl answers----------
+
+system calls with pid usage can use speed optimalization
+
+---------------------------------
+
+vmprint() prints addresses of process data (on the 3th level) 
+
+0. page -> code of the process 
+2. page -> stack of the process 
+
+user cannot access 1. page due to absenting user flag => to avoid stack overflow 
+
+3th page from end contains usyscall 
+
+---------------------------------
