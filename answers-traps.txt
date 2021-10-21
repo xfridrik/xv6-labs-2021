@@ -1,0 +1,28 @@
+1.--------traps answers----------
+
+    "a0-7" registers, printf arg 13 is in register a2
+
+2.-------------------------------
+
+    f() (with g()) is inlined and calculated value saved to a1
+
+3.-------------------------------
+
+    printf() is at 0x628
+
+4.-------------------------------
+
+    0x30
+
+5.-------------------------------
+
+    HE110 World
+    57616 = 0xe11
+    0x00646c72 ASCII: 72=r, 6c=l, 64=d (little-endian - from end)
+    big-endian - reverse byte order -> 726c64
+
+6.-------------------------------
+
+    old value stored in register a2
+
+---------------------------------
