@@ -96,3 +96,28 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+// every interval call handler function in trap
+uint64
+sys_sigalarm(void)
+{
+  uint64 handler;
+  int interval;
+  if(argint(0, &interval))
+    return -1;
+  if(argaddr(1, &handler))
+    return -1;
+  
+  myproc()->alarm_interval=interval;
+  myproc()->alarm_handler=handler;
+  return 0;
+}
+
+// restore registers after alarm
+uint64
+sys_sigreturn(void)
+{
+  *(myproc()->trapframe)=myproc()->prev_trapframe; // restore trapframe
+  myproc()->in_handling=0;
+  return myproc()->trapframe->a0; // return a0 value to keep same value after return
+}
