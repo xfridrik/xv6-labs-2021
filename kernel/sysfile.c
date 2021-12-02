@@ -287,6 +287,7 @@ uint64
 sys_open(void)
 {
   char path[MAXPATH];
+  char target[MAXPATH];
   int fd, omode;
   struct file *f;
   struct inode *ip;
@@ -313,6 +314,33 @@ sys_open(void)
       iunlockput(ip);
       end_op();
       return -1;
+    }
+  }
+
+  if(ip->type == T_SYMLINK && omode != O_NOFOLLOW){ 
+    int i = 0;
+    while(ip->type == T_SYMLINK){
+      if(i > 10){ // infinity recursion solver
+        iunlockput(ip);
+        end_op();
+        return -1;
+      }
+      
+      if(readi(ip, 0, (uint64)target, 0, MAXPATH) != MAXPATH){ // read target
+        iunlockput(ip);
+        end_op();
+        return -1;
+      }
+
+      iunlockput(ip);
+
+      if((ip = namei(target)) == 0){ // inode not exists
+        end_op();
+        return -1;
+      }
+
+      ilock(ip); // lock next inode
+      i++;
     }
   }
 
@@ -482,5 +510,37 @@ sys_pipe(void)
     fileclose(wf);
     return -1;
   }
+  return 0;
+}
+
+uint64
+sys_symlink(void)
+{
+  char target[MAXPATH];
+  char path[MAXPATH];
+  struct inode* ip;
+  begin_op();
+
+  if(argstr(0, target, MAXPATH) < 0){
+    end_op();
+    return -1;
+  }
+  if(argstr(1, path, MAXPATH) < 0){
+    end_op();
+    return -1;
+  }
+
+  if((ip = create(path, T_SYMLINK, 0, 0)) == 0){ // create locked symlink inode
+    end_op();
+    return -1;
+  }
+
+  if(writei(ip, 0, (uint64)target, 0, MAXPATH) != MAXPATH){ // write target to inode
+    end_op();
+    iunlock(ip);
+    return -1;
+  }
+  end_op();
+  iunlockput(ip);
   return 0;
 }
