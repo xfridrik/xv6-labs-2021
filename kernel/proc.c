@@ -5,6 +5,7 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "defs.h"
+#include "fcntl.h"
 
 struct cpu cpus[NCPU];
 
@@ -305,6 +306,13 @@ fork(void)
 
   pid = np->pid;
 
+  memmove((np->vma),(p->vma),sizeof(np->vma)); // move vmas to new process
+  for(int i=0; i<VMA_NUM; i++){
+    if(p->vma[i].f != 0){
+      filedup(np->vma[i].f); // dup and increment ref cnt
+    }
+  }
+
   release(&np->lock);
 
   acquire(&wait_lock);
@@ -350,6 +358,21 @@ exit(int status)
       struct file *f = p->ofile[fd];
       fileclose(f);
       p->ofile[fd] = 0;
+    }
+  }
+  for(int i=0; i<VMA_NUM; i++){
+    if(p->vma[i].f != 0){
+      int length = p->vma[i].length;
+      if(walkaddr(p->pagetable,p->vma[i].address)!=0){ //if page is mapped
+        if(p->vma[i].flags & MAP_SHARED){
+          filewrite(p->vma[i].f,p->vma[i].address,length);
+        }
+          uvmunmap(p->pagetable, p->vma[i].address, length/PGSIZE, 1);
+        p->vma[i].address += length;
+        p->vma[i].length -= length;
+        p->vma[i].offset += length;
+        fileclose(p->vma[i].f);
+      }
     }
   }
 

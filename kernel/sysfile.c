@@ -15,6 +15,7 @@
 #include "sleeplock.h"
 #include "file.h"
 #include "fcntl.h"
+#include "memlayout.h"
 
 // Fetch the nth word-sized system call argument as a file descriptor
 // and return both the descriptor and the corresponding struct file.
@@ -481,6 +482,74 @@ sys_pipe(void)
     fileclose(rf);
     fileclose(wf);
     return -1;
+  }
+  return 0;
+}
+
+uint64
+sys_mmap(void)
+{
+  uint64 addr;
+  int length, prot, flags, fd, offset;
+  if(argaddr(0, &addr) == -1)
+    return -1;
+  if(argint(1, &length) == -1)
+    return -1;
+  if(argint(2, &prot) == -1)
+    return -1;
+  if(argint(3, &flags) == -1)
+    return -1;
+  if(argint(4, &fd) == -1)
+    return -1; 
+  if(argint(5, &offset) == -1)
+    return -1;
+  struct vma *vma = find_empty_vma(myproc());
+  if(vma == 0){
+    return -1;
+  }
+
+  vma->length = length;
+  vma->flags = flags;
+  vma->offset = offset;
+  vma->prot = prot;
+
+  // write check
+  if(flags & MAP_SHARED && !myproc()->ofile[fd]->writable && prot & PROT_WRITE)
+    return -1;
+  
+  // find place to alloc
+  uint64 mmap_addr = alloc_mmap(myproc());
+  if(mmap_addr + length > TRAPFRAME)
+    return -1;
+
+  vma->f = myproc()->ofile[fd];
+  filedup(vma->f);
+  vma->address = mmap_addr;
+  return mmap_addr;
+}
+
+// unmapping page, pages with MAP_SHARED flag are written back to file
+uint64
+sys_munmap(void)
+{
+  uint64 addr;
+  int length;
+  if(argaddr(0, &addr) == -1)
+    return -1;
+  if(argint(1, &length) == -1)
+    return -1;
+  struct proc *p = myproc();
+  struct vma *vma = search_vma(p, addr);
+
+  if(walkaddr(p->pagetable,addr)!=0){ // if page is not mapped - skip unmapping
+    if(vma->flags & MAP_SHARED) // write to file
+      filewrite(vma->f,addr,length);
+    uvmunmap(p->pagetable, addr, length / PGSIZE, 1);
+    vma->address += length;
+    vma->length -= length;
+    vma->offset += length;
+    if(vma->length == length) // decrement ref count when unmapping all pages
+      fileclose(vma->f);
   }
   return 0;
 }
